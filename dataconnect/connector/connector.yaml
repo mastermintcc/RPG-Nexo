@@ -1,0 +1,6 @@
+# Connector configuration
+connectorId: "rpg-connector"
+generate:
+  javascriptSdk:
+    outputDir: "../src/app/generated/dataconnect"
+    package: "@rpg-nexus/sdk"

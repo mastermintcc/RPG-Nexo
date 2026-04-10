@@ -1,0 +1,13 @@
+# Firebase Data Connect configuration
+specVersion: "v1alpha"
+serviceId: "rpg-nexus"
+location: "us-central1" # Adjust as needed
+schema:
+  source: "schema"
+  datasource:
+    postgresql:
+      database: "rpg-nexus-db"
+      cloudSql:
+        instanceId: "gen-lang-client-0415008665:us-central1:rpg-nexus-instance"
+connectorDirs:
+  - "connector"

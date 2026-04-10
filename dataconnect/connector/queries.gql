@@ -1,0 +1,25 @@
+# Queries for RPG Nexus
+
+query GetProfile($id: String!) @auth(level: USER) {
+  profile(id: $id) {
+    id
+    email
+    displayName
+    role
+    isAdmin
+  }
+}
+
+query ListInstances @auth(level: USER) {
+  instances(orderBy: { createdAt: DESC }) {
+    id
+    name
+    description
+    status
+    maxPlayers
+    owner {
+      id
+      displayName
+    }
+  }
+}
