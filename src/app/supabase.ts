@@ -20,6 +20,15 @@ export function getSupabase() {
       return {
         auth: { 
           getUser: async () => ({ data: { user: null } }), 
+          signInWithPassword: async () => { 
+            alert('Erro: Supabase não configurado. Adicione a URL e a Chave Anon no menu Settings.');
+            return { error: new Error('Supabase not configured') }; 
+          },
+          signUp: async () => { 
+            alert('Erro: Supabase não configurado. Adicione a URL e a Chave Anon no menu Settings.');
+            return { data: { user: null }, error: new Error('Supabase not configured') }; 
+          },
+          signOut: async () => ({ error: null }),
           onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { /* no-op */ } } } }) 
         },
         from: () => ({ 
@@ -27,7 +36,9 @@ export function getSupabase() {
             eq: () => ({ single: async () => ({ data: null }) }), 
             order: async () => ({ data: [] }) 
           }), 
-          insert: async () => ({ error: new Error('Supabase not configured') }) 
+          insert: async () => ({ error: new Error('Supabase not configured') }),
+          update: () => ({ eq: async () => ({ error: new Error('Supabase not configured') }) }),
+          delete: () => ({ eq: async () => ({ error: new Error('Supabase not configured') }) })
         })
       } as unknown;
     }
