@@ -103,7 +103,7 @@ export class AuthComponent {
         });
         if (error) throw error;
       } else {
-        const { data, error } = await this.supabase.auth.signUp({
+        const { error } = await this.supabase.auth.signUp({
           email: this.email,
           password: this.password,
           options: {
@@ -115,21 +115,7 @@ export class AuthComponent {
         });
         if (error) throw error;
 
-        if (data.user) {
-          // Create Profile in Database
-          const { error: profileError } = await this.supabase
-            .from('profiles')
-            .insert([{
-              id: data.user.id,
-              display_name: this.displayName,
-              role: this.role,
-              is_admin: this.email === 'mastermintcc@gmail.com'
-            }]);
-          
-          if (profileError) throw profileError;
-        }
-
-        alert('Cadastro realizado! Bem-vindo ao Nexus.');
+        alert('Cadastro realizado! Bem-vindo ao Nexus. Verifique seu e-mail se necessário.');
         this.isLogin.set(true);
       }
       

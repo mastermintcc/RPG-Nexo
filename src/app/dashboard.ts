@@ -221,11 +221,19 @@ export class DashboardComponent implements OnInit {
   }
 
   async loadInstances() {
-    const { data } = await this.supabase
+    const { data: { user } } = await this.supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await this.supabase
       .from('instances')
       .select('*')
+      .eq('owner_id', user.id)
       .order('created_at', { ascending: false });
     
+    if (error) {
+      console.error('Error loading instances:', error);
+      return;
+    }
     if (data) this.instances.set(data as Instance[]);
   }
 

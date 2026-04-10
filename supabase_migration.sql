@@ -1,5 +1,8 @@
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- Create Profiles table
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   display_name TEXT,
   role TEXT,
@@ -8,7 +11,7 @@ CREATE TABLE profiles (
 );
 
 -- Create Instances table
-CREATE TABLE instances (
+CREATE TABLE IF NOT EXISTS instances (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
