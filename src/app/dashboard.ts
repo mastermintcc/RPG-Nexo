@@ -1,16 +1,14 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { auth, dataconnect } from './firebase';
-import { signOut, onAuthStateChanged } from 'firebase/auth';
-import { executeQuery, executeMutation, queryRef, mutationRef } from 'firebase/data-connect';
+import { getSupabase } from './supabase';
 import { Router } from '@angular/router';
 
 interface Profile {
   id: string;
-  displayName: string;
+  display_name: string;
   role: string;
-  isAdmin: boolean;
+  is_admin: boolean;
 }
 
 interface Instance {
@@ -18,8 +16,8 @@ interface Instance {
   name: string;
   description: string;
   status: string;
-  maxPlayers: number;
-  ownerId: string;
+  max_players: number;
+  owner_id: string;
 }
 
 @Component({
@@ -39,7 +37,7 @@ interface Instance {
         </div>
         <div class="flex items-center gap-4">
           <div class="text-right hidden sm:block">
-            <div class="font-bold text-sm">{{ userProfile()?.displayName }}</div>
+            <div class="font-bold text-sm">{{ userProfile()?.display_name }}</div>
             <div class="text-xs text-outline font-medium">{{ userProfile()?.role }}</div>
           </div>
           <button (click)="logout()" class="p-2 text-outline hover:text-tertiary transition-colors rounded-full hover:bg-tertiary/5">
@@ -67,7 +65,7 @@ interface Instance {
             <div class="flex items-center gap-3 p-3 rounded-xl text-outline hover:bg-primary/5 hover:text-primary transition-all cursor-pointer">
               <span class="material-icons">auto_stories</span> Regras
             </div>
-            @if (userProfile()?.isAdmin) {
+            @if (userProfile()?.is_admin) {
               <div class="pt-4 mt-4 border-t border-outline-variant/10">
                 <div class="text-xs font-bold text-outline uppercase tracking-widest mb-2 px-3">Admin</div>
                 <div class="flex items-center gap-3 p-3 rounded-xl text-outline hover:bg-primary/5 hover:text-primary transition-all cursor-pointer">
@@ -121,7 +119,7 @@ interface Instance {
                     <span class="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-bold uppercase tracking-wider">
                       {{ inst.status }}
                     </span>
-                    <span class="text-xs font-bold text-outline">{{ inst.maxPlayers }} Jogadores</span>
+                    <span class="text-xs font-bold text-outline">{{ inst.max_players }} Jogadores</span>
                   </div>
                 </div>
               } @empty {
@@ -164,7 +162,7 @@ interface Instance {
                 </div>
                 <div>
                   <label for="instPlayers" class="block text-xs font-bold uppercase tracking-wider text-outline mb-1 ml-1">Máx. Jogadores</label>
-                  <input id="instPlayers" type="number" [(ngModel)]="form.maxPlayers" name="maxPlayers" class="input-field" min="1" max="100">
+                  <input id="instPlayers" type="number" [(ngModel)]="form.max_players" name="max_players" class="input-field" min="1" max="100">
                 </div>
               </div>
 
@@ -189,6 +187,10 @@ interface Instance {
 export class DashboardComponent implements OnInit {
   private router = inject(Router);
   
+  get supabase() {
+    return getSupabase();
+  }
+
   userProfile = signal<Profile | null>(null);
   instances = signal<Instance[]>([]);
   showCreateModal = signal(false);
@@ -198,61 +200,53 @@ export class DashboardComponent implements OnInit {
     name: '',
     description: '',
     status: 'Ativa',
-    maxPlayers: 5
+    max_players: 5
   };
 
   async ngOnInit() {
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        this.router.navigate(['/auth']);
-        return;
-      }
+    const { data: { user } } = await this.supabase.auth.getUser();
+    if (!user) {
+      this.router.navigate(['/auth']);
+      return;
+    }
 
-      try {
-        const { data } = await executeQuery(queryRef(dataconnect, 'GetProfile', { id: user.uid }));
-        const profileData = data as { profile: Profile | null };
-        if (profileData?.profile) {
-          this.userProfile.set(profileData.profile);
-        }
-        this.loadInstances();
-      } catch (err) {
-        console.error('Error loading profile:', err);
-      }
-    });
+    const { data: profile } = await this.supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+    
+    this.userProfile.set(profile as Profile);
+    this.loadInstances();
   }
 
   async loadInstances() {
-    try {
-      const { data } = await executeQuery(queryRef(dataconnect, 'ListInstances'));
-      const instancesData = data as { instances: Instance[] };
-      if (instancesData?.instances) {
-        this.instances.set(instancesData.instances);
-      }
-    } catch (err) {
-      console.error('Error loading instances:', err);
-    }
+    const { data } = await this.supabase
+      .from('instances')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (data) this.instances.set(data as Instance[]);
   }
 
   async saveInstance(event: Event) {
     event.preventDefault();
-    const user = auth.currentUser;
+    const { data: { user } } = await this.supabase.auth.getUser();
     if (!user) return;
 
-    try {
-      if (this.editingId()) {
-        await executeMutation(mutationRef(dataconnect, 'UpdateInstance', {
-          id: this.editingId(),
-          ...this.form
-        }));
-      } else {
-        await executeMutation(mutationRef(dataconnect, 'CreateInstance', this.form));
-      }
+    const payload = {
+      ...this.form,
+      owner_id: user.id
+    };
 
-      this.closeModal();
-      this.loadInstances();
-    } catch (err) {
-      console.error('Error saving instance:', err);
+    if (this.editingId()) {
+      await this.supabase.from('instances').update(payload).eq('id', this.editingId());
+    } else {
+      await this.supabase.from('instances').insert([payload]);
     }
+
+    this.closeModal();
+    this.loadInstances();
   }
 
   editInstance(inst: Instance) {
@@ -261,19 +255,15 @@ export class DashboardComponent implements OnInit {
       name: inst.name,
       description: inst.description,
       status: inst.status,
-      maxPlayers: inst.maxPlayers
+      max_players: inst.max_players
     };
     this.showCreateModal.set(true);
   }
 
   async deleteInstance(id: string) {
     if (confirm('Tem certeza que deseja apagar esta instância?')) {
-      try {
-        await executeMutation(mutationRef(dataconnect, 'DeleteInstance', { id }));
-        this.loadInstances();
-      } catch (err) {
-        console.error('Error deleting instance:', err);
-      }
+      await this.supabase.from('instances').delete().eq('id', id);
+      this.loadInstances();
     }
   }
 
@@ -284,12 +274,12 @@ export class DashboardComponent implements OnInit {
       name: '',
       description: '',
       status: 'Ativa',
-      maxPlayers: 5
+      max_players: 5
     };
   }
 
   async logout() {
-    await signOut(auth);
+    await this.supabase.auth.signOut();
     this.router.navigate(['/auth']);
   }
 }

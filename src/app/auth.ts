@@ -1,9 +1,7 @@
 import { Component, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { auth, dataconnect } from './firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { executeMutation, mutationRef } from 'firebase/data-connect';
+import { getSupabase } from './supabase';
 import { Router } from '@angular/router';
 
 @Component({
@@ -74,6 +72,10 @@ import { Router } from '@angular/router';
 export class AuthComponent {
   private router = inject(Router);
   
+  get supabase() {
+    return getSupabase();
+  }
+
   isLogin = signal(true);
   loading = signal(false);
   error = signal<string | null>(null);
@@ -95,21 +97,37 @@ export class AuthComponent {
 
     try {
       if (this.isLogin()) {
-        await signInWithEmailAndPassword(auth, this.email, this.password);
-      } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, this.email, this.password);
-        const user = userCredential.user;
-
-        // Update Auth Profile
-        await updateProfile(user, { displayName: this.displayName });
-
-        // Create Profile in Data Connect (PostgreSQL)
-        await executeMutation(mutationRef(dataconnect, 'CreateProfile', {
-          id: user.uid,
+        const { error } = await this.supabase.auth.signInWithPassword({
           email: this.email,
-          displayName: this.displayName,
-          role: this.role
-        }));
+          password: this.password
+        });
+        if (error) throw error;
+      } else {
+        const { data, error } = await this.supabase.auth.signUp({
+          email: this.email,
+          password: this.password,
+          options: {
+            data: {
+              display_name: this.displayName,
+              role: this.role
+            }
+          }
+        });
+        if (error) throw error;
+
+        if (data.user) {
+          // Create Profile in Database
+          const { error: profileError } = await this.supabase
+            .from('profiles')
+            .insert([{
+              id: data.user.id,
+              display_name: this.displayName,
+              role: this.role,
+              is_admin: this.email === 'mastermintcc@gmail.com'
+            }]);
+          
+          if (profileError) throw profileError;
+        }
 
         alert('Cadastro realizado! Bem-vindo ao Nexus.');
         this.isLogin.set(true);
